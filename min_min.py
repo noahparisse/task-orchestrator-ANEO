@@ -29,7 +29,7 @@ def read_graphe(json_path):
     G = nx.DiGraph()
     
     for task in data["tasks"]:
-        G.add_node(task["id"], duration=task["duration"], memory=task["memory"])
+        G.add_node(task["id"], time=task["duration"], memory=task["memory"])
         for dep in task["dependencies"]:
             G.add_edge(dep, task["id"])
     
