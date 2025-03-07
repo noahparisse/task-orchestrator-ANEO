@@ -1,5 +1,46 @@
 import networkx as nx
 import matplotlib.pyplot as plt
+import json
+
+def parse_time(time_str):
+    """
+    Convertit une durée au format hh:mm:ss.ssssss en secondes
+    """
+    
+    parts = time_str.split(":")
+    h, m = int(parts[0]), int(parts[1])
+    
+    if "." in parts[2]: # Si il y a des décimales
+        s, fraction = parts[2].split(".")
+        s = int(s)
+        fraction = float("0." + fraction)  
+    else:  # Si il y a que des secondes
+        s = int(parts[2])
+        fraction = 0.0
+    
+    return h * 3600 + m * 60 + s + fraction 
+
+def read_graphe(json_path):
+    """
+    Charge un graphe de tâches depuis un fichier json
+    """
+    with open(json_path, "r") as f:
+        data = json.load(f)
+    G = nx.DiGraph()
+    
+    for task in data["tasks"]:
+        G.add_node(task["id"], duration=task["duration"], memory=task["memory"])
+        for dep in task["dependencies"]:
+            G.add_edge(dep, task["id"])
+    
+    return G
+
+# rend un graphe avec cette architecture : 
+# Nœuds : [('task1', {'duration': 10, 'memory': 512}), ('task2', {'duration': 15, 'memory': 1024}), ('task3', {'duration': 5, 'memory': 256})]
+# Arêtes : [('task1', 'task2'), ('task1', 'task3'), ('task1', 'task5'), ('task1', 'task7')]
+# Pour obtenir les attributs d'un nœud : G.nodes['task1']
+# Pour obtenir le temps d'exécution d'un nœud : G.nodes['task1']['duration']
+# Pour obtenir le besoin en mémoire d'un nœud : G.nodes['task1']['memory']
 
 def get_ready_tasks(G, unscheduled, schedule):
     """
@@ -154,7 +195,7 @@ def example_complex_graph():
     G.add_edge("E", "F")
     
     # Application de l'algorithme Min-Min sur 2 machines
-    schedule, makespan = min_min_schedule(G, num_machines=2)
+    schedule, makespan = min_min_schedule(read_graphe("graph.json"), num_machines=2)
     
     # Affichage du planning des tâches
     print("Planning des tâches:")
