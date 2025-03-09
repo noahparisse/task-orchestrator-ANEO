@@ -4,58 +4,44 @@ import json
 
 def parse_time(time_str):
     """
-    Convertit une durée au format hh:mm:ss.ssssss en secondes
+    Convertit une durée au format hh:mm:ss.ssssss en secondes.
     """
-    
     parts = time_str.split(":")
     h, m = int(parts[0]), int(parts[1])
     
-    if "." in parts[2]: # Si il y a des décimales
+    if "." in parts[2]:  # S'il y a des décimales
         s, fraction = parts[2].split(".")
         s = int(s)
         fraction = float("0." + fraction)  
-    else:  # Si il y a que des secondes
+    else:  # S'il n'y a que des secondes
         s = int(parts[2])
         fraction = 0.0
     
     return h * 3600 + m * 60 + s + fraction 
 
-def read_graphe(json_path):
+def read_graphe(json_path="graph.json", data=None):
     """
-    Charge un graphe de tâches depuis un fichier json
+    Charge un graphe de tâches depuis un fichier json.
+    Les tâches utilisent leur attribut "id" comme nom.
     """
-    with open(json_path, "r") as f:
-        data = json.load(f)
+    if data is None:
+        with open(json_path, "r") as f:
+            data = json.load(f)
     G = nx.DiGraph()
     
     for task in data["tasks"]:
+        # On utilise "id" pour nommer la tâche
         G.add_node(task["id"], time=task["duration"], memory=task["memory"])
         for dep in task["dependencies"]:
             G.add_edge(dep, task["id"])
     
     return G
 
-# rend un graphe avec cette architecture : 
-# Nœuds : [('task1', {'duration': 10, 'memory': 512}), ('task2', {'duration': 15, 'memory': 1024}), ('task3', {'duration': 5, 'memory': 256})]
-# Arêtes : [('task1', 'task2'), ('task1', 'task3'), ('task1', 'task5'), ('task1', 'task7')]
-# Pour obtenir les attributs d'un nœud : G.nodes['task1']
-# Pour obtenir le temps d'exécution d'un nœud : G.nodes['task1']['duration']
-# Pour obtenir le besoin en mémoire d'un nœud : G.nodes['task1']['memory']
-
 def get_ready_tasks(G, unscheduled, schedule):
     """
     Retourne la liste des tâches prêtes à être planifiées.
-
-    Une tâche est considérée prête si toutes ses dépendances (prédécesseurs)
-    sont déjà planifiées (présentes dans le dictionnaire 'schedule').
-
-    Args:
-        G (networkx.DiGraph): Le graphe des tâches.
-        unscheduled (set): Ensemble des tâches non encore planifiées.
-        schedule (dict): Dictionnaire de planification courant.
-
-    Returns:
-        list: Liste des tâches prêtes.
+    Une tâche est prête si toutes ses dépendances (prédécesseurs)
+    sont déjà planifiées.
     """
     ready_tasks = []
     for task in unscheduled:
@@ -66,21 +52,8 @@ def get_ready_tasks(G, unscheduled, schedule):
 
 def best_assignment_for_task(G, task, schedule, machine_ready):
     """
-    Détermine la meilleure affectation pour une tâche donnée.
-
-    Pour une tâche, cette fonction calcule le temps de démarrage et d'achèvement
-    possible sur chacune des machines en tenant compte :
-      - de la disponibilité de la machine,
-      - du temps de fin des tâches dont dépend la tâche considérée.
-    
-    Args:
-        G (networkx.DiGraph): Le graphe des tâches.
-        task (str): La tâche à planifier.
-        schedule (dict): Dictionnaire de planification courant.
-        machine_ready (list): Liste des temps de disponibilité pour chaque machine.
-    
-    Returns:
-        tuple: (machine_index, start_time, finish_time) correspondant à la meilleure affectation.
+    Pour une tâche donnée, détermine sur quelle machine et à quel moment elle peut être exécutée
+    pour se terminer le plus tôt possible.
     """
     task_time = G.nodes[task].get("time", 1)
     preds = list(G.predecessors(task))
@@ -102,30 +75,20 @@ def best_assignment_for_task(G, task, schedule, machine_ready):
 def min_min_schedule(G, num_machines):
     """
     Implémente l'algorithme Min-Min pour le scheduling sur 'num_machines' machines.
-
-    Chaque nœud du graphe G représente une tâche avec un attribut "time" indiquant le temps de traitement.
-    L'algorithme sélectionne, parmi les tâches prêtes, celle qui peut être terminée le plus tôt sur une machine donnée.
-
-    Args:
-        G (networkx.DiGraph): Le graphe d'ordonnancement (DAG).
-        num_machines (int): Nombre de machines homogènes disponibles.
-
-    Returns:
-        tuple: (schedule, makespan) où schedule est un dictionnaire de la forme
-               {tâche: (machine, start_time, finish_time)} et makespan est le temps global d'exécution.
+    
+    Retourne un dictionnaire de planning sous la forme :
+      { tâche: (machine, start_time, finish_time) }
+    ainsi que le makespan global.
     """
-    # Initialisation des temps de disponibilité pour chaque machine
-    machine_ready = [0] * num_machines  
+    machine_ready = [0] * num_machines  # Temps de disponibilité initial pour chaque machine
     schedule = {}
     unscheduled = set(G.nodes())
     
     while unscheduled:
-        # Sélectionner les tâches prêtes à être planifiées
         ready_tasks = get_ready_tasks(G, unscheduled, schedule)
         if not ready_tasks:
             raise Exception("Aucune tâche prête : le graphe comporte peut-être un cycle.")
         
-        # Recherche de la meilleure assignation parmi les tâches prêtes
         best_task = None
         best_machine = None
         best_start = None
@@ -147,14 +110,32 @@ def min_min_schedule(G, num_machines):
     makespan = max(machine_ready)
     return schedule, makespan
 
+def convert_schedule_to_json(schedule, num_machines):
+    """
+    Convertit le planning calculé au format JSON souhaité.
+    
+    Format final :
+    {
+      "core_0": [{"task": "task1", "start_time": 0}, ...],
+      "core_1": [{"task": "task2", "start_time": 21}, ...],
+      ...
+    }
+    """
+    final_schedule = {}
+    for m in range(num_machines):
+        final_schedule[f"core_{m}"] = []
+        
+    for task, (machine, start, finish) in schedule.items():
+        final_schedule[f"core_{machine}"].append({"task": task, "start_time": start})
+    
+    # Tri des tâches sur chaque core par ordre croissant de start_time
+    for core in final_schedule:
+        final_schedule[core] = sorted(final_schedule[core], key=lambda x: x["start_time"])
+    return final_schedule
+
 def plot_schedule_graph(G, tasks, title="Graphe d'ordonnancement de tâches"):
     """
     Affiche le graphe d'ordonnancement avec les temps de traitement indiqués sur chaque nœud.
-
-    Args:
-        G (networkx.DiGraph): Le graphe des tâches.
-        tasks (dict): Dictionnaire associant chaque tâche à son temps de traitement.
-        title (str): Titre du graphique.
     """
     pos = nx.spring_layout(G)
     labels = {node: f"{node}\n({tasks[node]})" for node in G.nodes()}
@@ -165,46 +146,48 @@ def plot_schedule_graph(G, tasks, title="Graphe d'ordonnancement de tâches"):
 
 def example_complex_graph():
     """
-    Exemple d'un graphe d'ordonnancement plus complexe.
-
-    Ce graphe utilise 2 machines et 6 tâches avec dépendances. Les temps de traitement
-    et les dépendances sont définis explicitement. Le makespan optimal (temps global d'exécution)
-    est calculé et affiché.
+    Exemple d'un graphe d'ordonnancement utilisant 4 machines et 6 tâches.
+    
+    Ici, les tâches portent des id tels que "task1", "task2", etc.
+    Les dépendances sont définies de manière à reproduire un scénario d'ordonnancement.
+    Le planning final est affiché au format JSON souhaité.
     """
-    # Création du graphe orienté (DAG)
-    G = nx.DiGraph()
+    # Création du graphe orienté (DAG) avec des tâches et leurs temps de traitement
+    # G = nx.DiGraph()
+    # tasks = {
+    #     "task1": 2,
+    #     "task2": 3,
+    #     "task3": 2,
+    #     "task4": 4,
+    #     "task5": 3,
+    #     "task6": 5
+    # }
+    # for task, t in tasks.items():
+    #     G.add_node(task, time=t)
     
-    # Définition des tâches et de leur temps de traitement
-    tasks = {
-        "A": 2,
-        "B": 3,
-        "C": 2,
-        "D": 4,
-        "E": 3,
-        "F": 5
-    }
-    for task, t in tasks.items():
-        G.add_node(task, time=t)
+    # # Définition des dépendances :
+    # # task1 -> task3, task1 -> task4, task2 -> task5, task3 -> task5, task4 -> task6, task5 -> task6
+    # G.add_edge("task1", "task3")
+    # G.add_edge("task1", "task4")
+    # G.add_edge("task2", "task5")
+    # G.add_edge("task3", "task5")
+    # G.add_edge("task4", "task6")
+    # G.add_edge("task5", "task6")
     
-    # Définition des dépendances
-    G.add_edge("A", "C")
-    G.add_edge("A", "D")
-    G.add_edge("B", "E")
-    G.add_edge("C", "E")
-    G.add_edge("D", "F")
-    G.add_edge("E", "F")
+    # Nombre de machines (cores)
+    num_machines = 2
+    G = read_graphe()
+    schedule, makespan = min_min_schedule(G, num_machines)
     
-    # Application de l'algorithme Min-Min sur 2 machines
-    schedule, makespan = min_min_schedule(read_graphe("graph.json"), num_machines=2)
+    # Conversion du planning en format JSON souhaité
+    final_schedule = convert_schedule_to_json(schedule, num_machines)
     
-    # Affichage du planning des tâches
-    print("Planning des tâches:")
-    for task, (machine, start, finish) in schedule.items():
-        print(f"  Tâche {task} -> Machine {machine} : démarre à {start}, termine à {finish}")
-    print("Temps d'exécution global (makespan) :", makespan)
+    print("Planning des tâches (format JSON) :")
+    print(json.dumps(final_schedule, indent=2))
+    print("Makespan (temps d'exécution global) :", makespan)
     
     # Affichage du graphe d'ordonnancement
-    plot_schedule_graph(G, tasks)
+    plot_schedule_graph(G, G.nodes(data="time"))
 
 if __name__ == "__main__":
     example_complex_graph()
