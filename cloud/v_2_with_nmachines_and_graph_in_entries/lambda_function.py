@@ -9,9 +9,9 @@ default_event = {
     "destination_title" : "ordo.json"
 }
 
-def lambda_handler(context, event = default_event):
+def lambda_handler(event, context):
     try:
-        """    
+        """
         Le planning final est affiché au format JSON souhaité.
         """
         initial_key = default_event["initial_key"]

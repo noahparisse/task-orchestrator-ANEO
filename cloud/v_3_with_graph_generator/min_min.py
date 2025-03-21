@@ -19,30 +19,27 @@ def parse_time(time_str):
     
     return h * 3600 + m * 60 + s + fraction 
 
-def read_graphe(json_path="graph.json", data=None):
+def read_graphe(input_key="input_data/graph.json", data=None):
     """
     Charge un graphe de tâches depuis un fichier json.
     Les tâches utilisent leur attribut "id" comme nom.
     """
-    try :
-        local_file_path = "/tmp/graph.json"
-        download_from_bucket(local_file_path, json_path)
-        
-        # Charger les données JSON depuis le fichier téléchargé
-        with open(local_file_path, "r") as file:
-            data = json.load(file)
+    local_file_path = "/tmp/"+get_file_name(input_key)
+    download_from_bucket(local_file_path, input_key)
+    
+    # Charger les données JSON depuis le fichier téléchargé
+    with open(local_file_path, "r") as file:
+        data = json.load(file)
 
-        G = nx.DiGraph()
-        
-        for task in data["tasks"]:
-            # On utilise "id" pour nommer la tâche
-            G.add_node(task["id"], time=task["duration"], memory=task["memory"])
-            for dep in task["dependencies"]:
-                G.add_edge(dep, task["id"])
-        
-        return G
-    except Exception as e :
-        return 
+    G = nx.DiGraph()
+    
+    for task in data["tasks"]:
+        # On utilise "id" pour nommer la tâche
+        G.add_node(task["id"], time=task["duration"], memory=task["memory"])
+        for dep in task["dependencies"]:
+            G.add_edge(dep, task["id"])
+    
+    return G
 
 def get_ready_tasks(G, unscheduled, schedule):
     """

@@ -4,36 +4,30 @@ import random
 import json
 import os
 
-def upload_on_bucket(output_local_path, destination_file_title, bucket_name = "central-supelec-data-groupe1"):
+def upload_on_bucket(local_path, bucket_key, bucket_name = "central-supelec-data-groupe1"):
     
     # Configuration du client S3
     s3 = boto3.client('s3')
-    
-    # Spécifier le chemin de destination sur S3 pour le fichier de sortie
-    destination_key = "output_data/"+destination_file_title  # Le fichier sera enregistré dans output_data/
 
     # Télécharger le fichier modifié vers S3
-    s3.upload_file(output_local_path, bucket_name, destination_key)
+    s3.upload_file(local_path, bucket_name, bucket_key)
     
     return {"StatusCode" : 100,
-            "body" : f"Le document {destination_file_title} a été téléversé dans {bucket_name}",
-            "destination_key" : destination_key,
+            "body" : f"Le document {local_path} a été téléversé dans {bucket_name}",
+            "destination_key" : bucket_key,
             "bucket_name": bucket_name }
 
-def download_from_bucket(destination_local_path, input_file_title, bucket_name = "central-supelec-data-groupe1"):
+def download_from_bucket(local_path, bucket_key, bucket_name = "central-supelec-data-groupe1"):
     
     # Configuration du client S3
     s3 = boto3.client('s3')
-    
-    # S3 bucket et clé de l'objet à lire
-    input_key = "input_data/"+input_file_title
 
     # Télécharger le fichier JSON depuis S3
-    s3.download_file(bucket_name, input_key, destination_local_path)
+    s3.download_file(bucket_name, bucket_key, local_path)
     
     return {"StatusCode" : 100,
-            "body" : f"Le document {input_file_title} a été téléchargé depuis {bucket_name}",
-            "local_path" : destination_local_path}
+            "body" : f"Le document {bucket_key} a été téléchargé depuis {bucket_name}",
+            "local_path" : local_path}
     
 def generate_task_graph(num_tasks, max_dependencies=None, random_seed=None):
     """ Génère un graphe de tâches avec des dépendances aléatoires """
@@ -90,18 +84,18 @@ def save_graph_to_json(task_data, num_tasks, max_dependencies, random_seed):
     }
 
     filename = f"task_graph_{num_tasks}_{max_dependencies}_seed_{random_seed}.json"
-    local_path = "tmp/"+filename
+    bucket_key = "output_data/"+filename
+    local_path = "/tmp/"+filename
     
     with open(local_path, "w", encoding="utf-8") as f:
         json.dump(graph_json, f, indent=4)  # Enregistrement avec indentation
-    tmp = upload_on_bucket(local_path, filename)  # Enregistrement du graphe en .json sur le S3
-    graph_bucket_key = tmp["destination_key"]
+    tmp = upload_on_bucket(local_path, bucket_key)  # Enregistrement du graphe en .json sur le S3
     bucket_name = tmp["bucket_name"]
     
     if os.path.exists(local_path):  # Supprimer le fichier temporaire après utilisation
         os.remove(local_path)
     
-    return graph_bucket_key, filename, bucket_name
+    return bucket_key, bucket_name
 
 def graph_generator(num_tasks, random_seed = None, max_dependencies = None):
     """ Fonction principale du générateur de graphes : génère un graphe de tâches avec dépendances aléatoires et l'enregistre en JSON.
@@ -115,9 +109,16 @@ def graph_generator(num_tasks, random_seed = None, max_dependencies = None):
     assert nx.is_directed_acyclic_graph(G), f"Le graphe généré task_graph_{num_tasks}_{max_dependencies}_seed_{random_seed}.json contient un cycle !"
 
     # Sauvegarde en JSON
-    graph_bucket_key, filename, bucket_name = save_graph_to_json(task_data, num_tasks, max_dependencies, random_seed)
+    bucket_key, bucket_name = save_graph_to_json(task_data, num_tasks, max_dependencies, random_seed)
     
-    return {"body" : f"Le graphe généré {filename} est disponible dans le bucket {bucket_name} à l'adresse {graph_bucket_key}",
-            "graph_bucket_key" : graph_bucket_key,
-            "filename" : filename,
+    return {"body" : f"Le graphe généré {bucket_key} est disponible dans le bucket {bucket_name}",
+            "graph_bucket_key" : bucket_key,
             "bucket_name" : bucket_name}
+
+def get_file_name(path):
+    n = 0
+    for i in range(len(path)-1, -1, -1):
+        if path[i]=='/':
+            n = i+1
+            break
+    return path[n:]
