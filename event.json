@@ -1,0 +1,17 @@
+{
+    "measure_time_vs_N": true,
+    "measure_time_vs_M": false,
+    "measure_memory_vs_N": false,
+    "num_tasks_range": [
+        8000,
+        8500,
+        500
+    ],
+    "machines_range": [
+        1,
+        70,
+        3
+    ],
+    "fixed_machines": 2,
+    "fixed_tasks": 1000
+}

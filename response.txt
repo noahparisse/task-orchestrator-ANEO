@@ -1,1 +1,0 @@
-{"StatusCode": 600, "body": "L'ordonnancement a été téléversé en tant que output_data/ordo.json dans le S3. Le makespan est de 17750"}
