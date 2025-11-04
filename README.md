@@ -8,6 +8,8 @@ This project demonstrates the deployment and execution of a task orchestration a
 
 **Academic Context**: Developed as part of the ST7 Project at CentraleSupélec in collaboration with ANEO, focusing on cloud computing, distributed systems, and task scheduling optimization.
 
+📄 **For detailed information**, see the additional [documentation.pdf](documentation.pdf).
+
 ## 2. Architecture
 
 
